@@ -36,14 +36,21 @@ DEFAULT_CONFIG = {
 }
 
 def load_config():
+    cfg = DEFAULT_CONFIG.copy()
     if CONFIG_FILE.exists():
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-                return {**DEFAULT_CONFIG, **cfg}
+                cfg.update(json.load(f))
         except Exception:
             pass
-    return DEFAULT_CONFIG.copy()
+    # Override with Environment Variables (especially for Render Cloud deployment)
+    if os.environ.get("RUNPOD_API_KEY"):
+        cfg["runpod_api_key"] = os.environ.get("RUNPOD_API_KEY")
+    if os.environ.get("RUNPOD_POD_ID"):
+        cfg["pod_id"] = os.environ.get("RUNPOD_POD_ID")
+    if os.environ.get("COMFYUI_URL"):
+        cfg["comfyui_url"] = os.environ.get("COMFYUI_URL")
+    return cfg
 
 def save_config(cfg):
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
