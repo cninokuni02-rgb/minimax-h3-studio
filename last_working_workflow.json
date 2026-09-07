@@ -1,0 +1,172 @@
+{
+  "1": {
+    "inputs": {
+      "unet_name": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader"
+  },
+  "2": {
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader"
+  },
+  "3": {
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+    },
+    "class_type": "VAELoader"
+  },
+  "4": {
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "class_type": "VAELoader"
+  },
+  "5": {
+    "inputs": {
+      "image": "example.png",
+      "upload": "image"
+    },
+    "class_type": "LoadImage"
+  },
+  "6": {
+    "inputs": {
+      "image": "example.png",
+      "upload": "image"
+    },
+    "class_type": "LoadImage"
+  },
+  "7": {
+    "inputs": {
+      "audio": "sexy_thai_speech.mp3"
+    },
+    "class_type": "LoadAudio"
+  },
+  "8": {
+    "inputs": {
+      "prompt": "A video of <Picture 1> gesturing enthusiastically beside <Picture 2>. Speaking smoothly with voice <Audio 1> in Thai: \"\u0e17\u0e14\u0e2a\u0e2d\u0e1a\u0e23\u0e30\u0e1a\u0e1a\u0e40\u0e2a\u0e35\u0e22\u0e07\u0e41\u0e25\u0e30\u0e20\u0e32\u0e1e\u0e0b\u0e34\u0e07\u0e04\u0e4c\u0e15\u0e23\u0e07\u0e01\u0e31\u0e19\u0e41\u0e25\u0e49\u0e27\u0e04\u0e23\u0e31\u0e1a\". 4k studio lighting, clear voice and crisp lip sync.",
+      "width": 1344,
+      "height": 768,
+      "length": 124,
+      "ref_image_size": "match",
+      "clip": [
+        "2",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ],
+      "audio_vae": [
+        "4",
+        0
+      ],
+      "ref_images.ref_image_0": [
+        "5",
+        0
+      ],
+      "ref_images.ref_image_1": [
+        "6",
+        0
+      ],
+      "ref_audios.ref_audio_0": [
+        "7",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ReferenceToVideo"
+  },
+  "22": {
+    "inputs": {
+      "text": "",
+      "clip": [
+        "2",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "9": {
+    "inputs": {
+      "seed": 8881234567,
+      "steps": 20,
+      "cfg": 6.0,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 1.0,
+      "model": [
+        "1",
+        0
+      ],
+      "positive": [
+        "8",
+        0
+      ],
+      "negative": [
+        "22",
+        0
+      ],
+      "latent_image": [
+        "8",
+        1
+      ]
+    },
+    "class_type": "KSampler"
+  },
+  "10": {
+    "inputs": {
+      "samples": [
+        "9",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "VAEDecode"
+  },
+  "24": {
+    "inputs": {
+      "samples": [
+        "9",
+        0
+      ],
+      "vae": [
+        "4",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeAudio"
+  },
+  "21": {
+    "inputs": {
+      "images": [
+        "10",
+        0
+      ],
+      "fps": 24.0,
+      "audio": [
+        "24",
+        0
+      ]
+    },
+    "class_type": "CreateVideo"
+  },
+  "23": {
+    "inputs": {
+      "video": [
+        "21",
+        0
+      ],
+      "filename_prefix": "minimax_h3_test",
+      "format": "mp4",
+      "codec": "auto"
+    },
+    "class_type": "SaveVideo"
+  }
+}
