@@ -1229,8 +1229,32 @@ HTML_PAGE = """<!DOCTYPE html>
       const promptText = document.getElementById('promptInput').value.trim();
 
       if (!fileFace) return showToast('กรุณาเลือกภาพใบหน้าของคุณ <Picture 1>', 'danger');
-      if (!fileAudio && !generatedVoiceBlob) return showToast('กรุณาเลือกไฟล์เสียงพากย์ หรือกดปุ่ม "กดเจนเสียงพูด AI อัตโนมัติ"', 'danger');
       if (!promptText) return showToast('กรุณากรอกสคริปต์คำสั่ง', 'danger');
+
+      // ถ้าผู้ใช้ไม่ได้อัปโหลดเสียง ให้สั่งเจนเสียงพูดไทยอัตโนมัติจาก Prompt ทันที
+      let audioBlobToSend = fileAudio || generatedVoiceBlob;
+      if (!audioBlobToSend) {
+        showToast('กำลังเจนเสียงพากย์ไทยอัตโนมัติจากข้อความใน Prompt...', 'info');
+        const match = promptText.match(/"([^"]+)"/);
+        const textToSpeak = match ? match[1] : promptText;
+        try {
+          const ttsRes = await fetch('/api/tts/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: textToSpeak, voice: 'th-TH-NiwatNeural', rate: '+15%' })
+          });
+          const ttsData = await ttsRes.json();
+          if (!ttsRes.ok) throw new Error(ttsData.detail || 'เจนเสียงไม่สำเร็จ');
+          const aRes = await fetch(ttsData.url);
+          audioBlobToSend = await aRes.blob();
+          document.getElementById('audioFileName').innerText = `เสียง AI อัตโนมัติ: "${textToSpeak.slice(0, 20)}..."`;
+          document.getElementById('audioPreview').src = ttsData.url;
+          document.getElementById('audioInfoBox').classList.remove('hidden');
+          document.getElementById('iconAudio').classList.add('hidden');
+        } catch (e) {
+          return showToast('สร้างเสียงพากย์อัตโนมัติไม่สำเร็จ: ' + e.message, 'danger');
+        }
+      }
 
       const formData = new FormData();
       formData.append('face_image', fileFace);
@@ -1240,7 +1264,7 @@ HTML_PAGE = """<!DOCTYPE html>
       if (fileAudio) {
         formData.append('voice_audio', fileAudio);
       } else {
-        formData.append('voice_audio', generatedVoiceBlob, 'auto_generated_voice.mp3');
+        formData.append('voice_audio', audioBlobToSend, 'auto_generated_voice.mp3');
       }
       formData.append('prompt_text', promptText);
 
