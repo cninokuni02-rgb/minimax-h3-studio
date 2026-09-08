@@ -740,8 +740,11 @@ HTML_PAGE = """<!DOCTYPE html>
               <i class="fa-solid fa-wand-magic-sparkles"></i>
               <span>กดเจนเสียงพูด AI อัตโนมัติ</span>
             </button>
-            <button onclick="applyPreset('tech_creator')" class="px-2.5 py-1 text-[11px] rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 transition">ประโยคใหม่</button>
-            <button onclick="applyPreset('tech_review')" class="px-2.5 py-1 text-[11px] rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 transition">รีวิวคอม</button>
+            <button onclick="applyPreset('tech_creator')" class="px-2.5 py-1 text-[11px] rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 transition">สคริปต์นี้</button>
+            <button onclick="useOriginalClonedVoice()" id="btnUseClonedVoice" class="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-amber-600/30 hover:bg-amber-600/50 text-amber-300 border border-amber-500/40 transition flex items-center gap-1.5">
+              <i class="fa-solid fa-headset"></i>
+              <span>ดึงเสียงโคลน ElevenLabs เก่า</span>
+            </button>
           </div>
         </div>
 
@@ -1247,6 +1250,26 @@ HTML_PAGE = """<!DOCTYPE html>
         p.value = 'A video of <Picture 1> gesturing enthusiastically towards <Picture 2> beside him. He speaks with voice <Audio 1> in Thai: "ไม่ต้องพึ่งค่ายใหญ่แล้วครับ รันเองในเครื่องแบบนี้ ลื่นหัวแตกเลยครับ". High-end YouTube studio background, modern lighting, clear voice and crisp lip sync, 4k resolution.';
       }
       document.getElementById('charCount').innerText = `${p.value.length} ตัวอักษร`;
+    }
+
+    async function useOriginalClonedVoice() {
+      const btn = document.getElementById('btnUseClonedVoice');
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> โหลดเสียง...';
+      try {
+        const res = await fetch('/static/elevenlabs_clip_short.mp3');
+        if (!res.ok) throw new Error('ไม่พบไฟล์เสียงใน static');
+        generatedVoiceBlob = await res.blob();
+        document.getElementById('audioFileName').innerText = 'เสียงโคลน: ElevenLabs_คนพากBG_ivc (6.5s)';
+        const audio = document.getElementById('audioPreview');
+        audio.src = '/static/elevenlabs_clip_short.mp3';
+        document.getElementById('audioInfoBox').classList.remove('hidden');
+        document.getElementById('iconAudio').classList.add('hidden');
+        showToast('โหลดเสียงโคลน ElevenLabs เก่าเรียบร้อยแล้ว!', 'success');
+      } catch (err) {
+        showToast('โหลดเสียงไม่สำเร็จ: ' + err.message, 'danger');
+      } finally {
+        btn.innerHTML = '<i class="fa-solid fa-headset"></i> <span>ดึงเสียงโคลน ElevenLabs เก่า</span>';
+      }
     }
 
     function toggleTurboDisplay(checked) {
