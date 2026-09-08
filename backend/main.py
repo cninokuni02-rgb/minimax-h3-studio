@@ -37,19 +37,18 @@ DEFAULT_CONFIG = {
 
 def load_config():
     cfg = DEFAULT_CONFIG.copy()
-    if CONFIG_FILE.exists():
-        try:
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                cfg.update(json.load(f))
-        except Exception:
-            pass
-    # Override with Environment Variables (especially for Render Cloud deployment)
     if os.environ.get("RUNPOD_API_KEY"):
         cfg["runpod_api_key"] = os.environ.get("RUNPOD_API_KEY")
     if os.environ.get("RUNPOD_POD_ID"):
         cfg["pod_id"] = os.environ.get("RUNPOD_POD_ID")
     if os.environ.get("COMFYUI_URL"):
         cfg["comfyui_url"] = os.environ.get("COMFYUI_URL")
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                cfg.update(json.load(f))
+        except Exception:
+            pass
     return cfg
 
 def save_config(cfg):
@@ -118,6 +117,50 @@ def check_system_status():
         "pod_id": pod_id
     }
     
+    # If RunPod API Key is provided, auto-detect active running pod first
+    if api_key:
+        try:
+            graphql_url = f"https://api.runpod.io/graphql?api_key={api_key}"
+            query = """
+            query {
+                myself {
+                    id
+                    email
+                    pods {
+                        id
+                        name
+                        desiredStatus
+                        costPerHr
+                    }
+                }
+            }
+            """
+            resp = requests.post(graphql_url, json={"query": query}, timeout=5)
+            if resp.status_code == 200:
+                data = resp.json().get("data", {})
+                myself = data.get("myself")
+                if myself:
+                    result["user_email"] = myself.get("email")
+                    result["api_connected"] = True
+                    pods = myself.get("pods", [])
+                    result["user_pods"] = pods
+                    active_running = [p for p in pods if p.get("desiredStatus") == "RUNNING"]
+                    if active_running:
+                        current_active_id = active_running[0]["id"]
+                        result["active_pod_id"] = current_active_id
+                        result["cost_per_hr"] = active_running[0].get("costPerHr", 0.74)
+                        result["pod_status"] = "RUNNING"
+                        if current_active_id != pod_id:
+                            cfg["pod_id"] = current_active_id
+                            cfg["comfyui_url"] = f"https://{current_active_id}-8188.proxy.runpod.net"
+                            comfy_url = cfg["comfyui_url"]
+                            save_config(cfg)
+                            result["pod_id"] = current_active_id
+                    else:
+                        result["pod_status"] = "STOPPED"
+        except Exception:
+            pass
+
     if comfy_url:
         try:
             r = requests.get(f"{comfy_url}/system_stats", headers=HEADERS, timeout=4)
@@ -157,50 +200,6 @@ def check_system_status():
                     result["queue_pending"] = len(q_data.get("queue_pending", []))
             except Exception:
                 pass
-
-    if api_key:
-        try:
-            graphql_url = f"https://api.runpod.io/graphql?api_key={api_key}"
-            query = """
-            query {
-                myself {
-                    id
-                    email
-                    pods {
-                        id
-                        name
-                        desiredStatus
-                        costPerHr
-                    }
-                }
-            }
-            """
-            resp = requests.post(graphql_url, json={"query": query}, timeout=5)
-            if resp.status_code == 200:
-                data = resp.json().get("data", {})
-                myself = data.get("myself")
-                if myself:
-                    result["user_email"] = myself.get("email")
-                    result["api_connected"] = True
-                    pods = myself.get("pods", [])
-                    result["user_pods"] = pods
-                    active_running = [p for p in pods if p.get("desiredStatus") == "RUNNING"]
-                    if active_running:
-                        current_active_id = active_running[0]["id"]
-                        result["active_pod_id"] = current_active_id
-                        result["cost_per_hr"] = active_running[0].get("costPerHr", 0.74)
-                        result["pod_status"] = "RUNNING"
-                        # Auto-update config if active pod id changed
-                        if current_active_id != pod_id:
-                            cfg["pod_id"] = current_active_id
-                            cfg["comfyui_url"] = f"https://{current_active_id}-8188.proxy.runpod.net"
-                            save_config(cfg)
-                            result["pod_id"] = current_active_id
-                    else:
-                        result["pod_status"] = "STOPPED"
-        except Exception:
-            pass
-            
     return result
 
 @app.post("/api/pod/stop")
