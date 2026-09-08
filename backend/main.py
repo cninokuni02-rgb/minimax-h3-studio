@@ -305,9 +305,9 @@ def upload_file_to_comfy(comfy_url: str, file_bytes: bytes, filename: str):
 @app.post("/api/generate")
 async def generate_video(
     face_image: UploadFile = File(...),
-    screen_image: UploadFile = File(...),
     voice_audio: UploadFile = File(...),
     prompt_text: str = Form(...),
+    screen_image: Optional[UploadFile] = File(None),
     width: int = Form(1344),
     height: int = Form(768),
     length: int = Form(124),
@@ -322,13 +322,13 @@ async def generate_video(
         raise HTTPException(status_code=400, detail="ComfyUI URL ไม่ถูกต้อง")
 
     face_bytes = await face_image.read()
-    screen_bytes = await screen_image.read()
     audio_bytes = await voice_audio.read()
+    screen_bytes = await screen_image.read() if screen_image else None
 
     try:
         uploaded_face = upload_file_to_comfy(comfy_url, face_bytes, face_image.filename)
-        uploaded_screen = upload_file_to_comfy(comfy_url, screen_bytes, screen_image.filename)
         uploaded_audio = upload_file_to_comfy(comfy_url, audio_bytes, voice_audio.filename)
+        uploaded_screen = upload_file_to_comfy(comfy_url, screen_bytes, screen_image.filename) if screen_bytes else None
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"อัปโหลดไฟล์ไปยัง ComfyUI ไม่สำเร็จ: {str(e)}")
 
@@ -370,13 +370,6 @@ async def generate_video(
             },
             "class_type": "LoadImage"
         },
-        "6": {
-            "inputs": {
-                "image": uploaded_screen,
-                "upload": "image"
-            },
-            "class_type": "LoadImage"
-        },
         "7": {
             "inputs": {
                 "audio": uploaded_audio
@@ -394,7 +387,6 @@ async def generate_video(
                 "vae": ["3", 0],
                 "audio_vae": ["4", 0],
                 "ref_images.ref_image_0": ["5", 0],
-                "ref_images.ref_image_1": ["6", 0],
                 "ref_audios.ref_audio_0": ["7", 0]
             },
             "class_type": "MiniMaxH3ReferenceToVideo"
@@ -446,6 +438,16 @@ async def generate_video(
             "class_type": "SaveVideo"
         }
     }
+
+    if uploaded_screen:
+        workflow_prompt["6"] = {
+            "inputs": {
+                "image": uploaded_screen,
+                "upload": "image"
+            },
+            "class_type": "LoadImage"
+        }
+        workflow_prompt["8"]["inputs"]["ref_images.ref_image_1"] = ["6", 0]
 
     payload = {
         "prompt": workflow_prompt,
@@ -673,16 +675,20 @@ HTML_PAGE = """<!DOCTYPE html>
           </div>
 
           <div class="relative group">
-            <label class="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
-              <i class="fa-solid fa-desktop text-purple-400"></i>
-              <span>ภาพจอ/กราฟิก &lt;Picture 2&gt;</span>
+            <label class="block text-xs font-medium text-slate-300 mb-1.5 flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                <i class="fa-solid fa-desktop text-purple-400"></i>
+                <span>ภาพฉาก/จอ &lt;Picture 2&gt;</span>
+              </div>
+              <span class="text-[10px] text-slate-500">(ไม่ใส่ก็ได้ AI เสกฉากให้)</span>
             </label>
             <div id="dropScreen" onclick="document.getElementById('fileScreen').click()" class="border-2 border-dashed border-slate-700 hover:border-purple-500 rounded-xl p-3 text-center cursor-pointer bg-surface-900/50 hover:bg-surface-900 transition flex flex-col items-center justify-center min-h-[140px]">
               <input type="file" id="fileScreen" accept="image/*" class="hidden" onchange="previewFile(this, 'previewScreen', 'iconScreen')">
               <img id="previewScreen" class="hidden w-full h-28 object-cover rounded-lg mb-1" />
               <div id="iconScreen" class="space-y-1">
-                <i class="fa-solid fa-display text-2xl text-slate-500 group-hover:text-purple-400 transition"></i>
-                <p class="text-[11px] text-slate-400">เลือกภาพฉาก/จอคอม</p>
+                <i class="fa-solid fa-wand-magic-sparkles text-2xl text-slate-500 group-hover:text-purple-400 transition"></i>
+                <p class="text-[11px] text-slate-400">ไม่ใส่ = AI เจนฉากหลังตาม Prompt</p>
+                <p class="text-[9px] text-slate-500">หรือคลิกเพื่อเลือกภาพฉากของคุณเอง</p>
               </div>
             </div>
           </div>
@@ -1223,13 +1229,14 @@ HTML_PAGE = """<!DOCTYPE html>
       const promptText = document.getElementById('promptInput').value.trim();
 
       if (!fileFace) return showToast('กรุณาเลือกภาพใบหน้าของคุณ <Picture 1>', 'danger');
-      if (!fileScreen) return showToast('กรุณาเลือกภาพจอหรือกราฟิก <Picture 2>', 'danger');
       if (!fileAudio && !generatedVoiceBlob) return showToast('กรุณาเลือกไฟล์เสียงพากย์ หรือกดปุ่ม "กดเจนเสียงพูด AI อัตโนมัติ"', 'danger');
       if (!promptText) return showToast('กรุณากรอกสคริปต์คำสั่ง', 'danger');
 
       const formData = new FormData();
       formData.append('face_image', fileFace);
-      formData.append('screen_image', fileScreen);
+      if (fileScreen) {
+        formData.append('screen_image', fileScreen);
+      }
       if (fileAudio) {
         formData.append('voice_audio', fileAudio);
       } else {
