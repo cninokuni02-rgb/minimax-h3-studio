@@ -313,6 +313,7 @@ async def generate_video(
     length: int = Form(124),
     steps: int = Form(20),
     cfg_scale: float = Form(6.0),
+    use_turbo: bool = Form(False),
     seed: Optional[int] = Form(None),
     auto_stop_pod: bool = Form(False)
 ):
@@ -438,6 +439,21 @@ async def generate_video(
             "class_type": "SaveVideo"
         }
     }
+
+    if use_turbo:
+        workflow_prompt["12"] = {
+            "inputs": {
+                "lora_name": "minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors",
+                "strength_model": 1.0,
+                "strength_clip": 1.0,
+                "model": ["1", 0],
+                "clip": ["2", 0]
+            },
+            "class_type": "LoraLoader"
+        }
+        workflow_prompt["9"]["inputs"]["model"] = ["12", 0]
+        workflow_prompt["9"]["inputs"]["steps"] = 4
+        workflow_prompt["9"]["inputs"]["cfg"] = 1.0
 
     if uploaded_screen:
         workflow_prompt["6"] = {
@@ -762,12 +778,23 @@ HTML_PAGE = """<!DOCTYPE html>
           </div>
           <div>
             <label class="block text-slate-400 mb-1">Sampling Steps</label>
-            <input type="number" id="settingSteps" value="20" class="w-full bg-surface-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-200">
+            <input type="number" id="settingSteps" value="4" class="w-full bg-surface-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-200">
           </div>
           <div>
             <label class="block text-slate-400 mb-1">CFG Scale</label>
-            <input type="number" step="0.5" id="settingCfg" value="6.0" class="w-full bg-surface-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-200">
+            <input type="number" step="0.5" id="settingCfg" value="1.0" class="w-full bg-surface-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-200">
           </div>
+        </div>
+
+        <div class="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between">
+          <div>
+            <span class="font-bold text-amber-400 flex items-center gap-1.5"><i class="fa-solid fa-bolt"></i> โหมดสปีดสายฟ้า (Turbo 4-Step LoRA)</span>
+            <p class="text-[11px] text-slate-400">คำนวณแค่ 4 สเต็ปจบ ใช้เวลาเพียง ~25-40 วินาทีต่อคลิป เหมาะสำหรับเทสต์ไวสุดๆ</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="chkTurboMode" checked class="sr-only peer" onchange="toggleTurboDisplay(this.checked)">
+            <div class="w-11 h-6 bg-surface-900 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+          </label>
         </div>
       </details>
 
@@ -1222,6 +1249,11 @@ HTML_PAGE = """<!DOCTYPE html>
       document.getElementById('charCount').innerText = `${p.value.length} ตัวอักษร`;
     }
 
+    function toggleTurboDisplay(checked) {
+      document.getElementById('settingSteps').value = checked ? 4 : 20;
+      document.getElementById('settingCfg').value = checked ? 1.0 : 6.0;
+    }
+
     async function startGeneration() {
       const fileFace = document.getElementById('fileFace').files[0];
       const fileScreen = document.getElementById('fileScreen').files[0];
@@ -1274,6 +1306,7 @@ HTML_PAGE = """<!DOCTYPE html>
       formData.append('length', document.getElementById('settingLength').value);
       formData.append('steps', document.getElementById('settingSteps').value);
       formData.append('cfg_scale', document.getElementById('settingCfg').value);
+      formData.append('use_turbo', document.getElementById('chkTurboMode').checked);
       formData.append('auto_stop_pod', document.getElementById('chkAutoStop').checked);
 
       const btnGen = document.getElementById('btnGenerate');
